@@ -8,45 +8,55 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v4
       with:
-        python-version: '3.10'
+        python-version: '3.8'
 
-    - name: Install Buildozer and dependencies
+    - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y \
-          git zip unzip openjdk-11-jdk python3-pip \
-          autoconf libtool pkg-config zlib1g-dev \
-          libncurses5 libncursesw5 libffi-dev libssl-dev \
-          cmake wget
-        pip install --upgrade pip
-        pip install cython buildozer
+        sudo apt-get install -y git zip unzip openjdk-11-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
 
-    - name: Install Android SDK command-line tools
-      run: |
-        mkdir -p $HOME/android-sdk/cmdline-tools
-        cd $HOME/android-sdk/cmdline-tools
-        wget https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O sdk-tools.zip
-        unzip sdk-tools.zip -d latest
-        echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-        echo "PATH=$HOME/android-sdk/cmdline-tools/latest/bin:$HOME/android-sdk/platform-tools:$PATH" >> $GITHUB_ENV
+    - name: Install Buildozer
+      run: pip install buildozer
 
-    - name: Accept Android licenses & install tools
+    - name: Set up Android SDK
       run: |
-        sdkmanager --sdk_root=$HOME/android-sdk --licenses <<< "y"
-        sdkmanager --sdk_root=$HOME/android-sdk "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+        mkdir -p ~/android-sdk
+        cd ~/android-sdk
+        wget https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip
+        unzip commandlinetools-linux-8512546_latest.zip
+        mkdir cmdline-tools
+        mv tools cmdline-tools/latest
+        export ANDROID_HOME=~/android-sdk
+        export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
+        echo "ANDROID_HOME=~/android-sdk" >> $GITHUB_ENV
+        echo "PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
+
+    - name: Accept Android licenses
+      run: |
+        yes | ~/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+
+    - name: Install Android platform and build tools
+      run: |
+        ~/android-sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-33" "build-tools;33.0.0" "platform-tools"
+
+    - name: Initialize Buildozer
+      run: |
+        buildozer init
+        # Copy our buildozer.spec to overwrite the generated one
+        cp buildozer.spec .
 
     - name: Build APK with Buildozer
       run: |
-        buildozer android debug
+        buildozer -v android debug
         ls -la bin/
 
     - name: Upload APK artifact
