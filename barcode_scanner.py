@@ -1,62 +1,44 @@
-try:
-    from kivy.graphics.texture import Texture
-    from kivy.uix.camera import Camera
-    from kivy.uix.image import Image
-    from pyzbar.pyzbar import decode
-    from PIL import Image as PILImage
-    import numpy as np
-except ImportError:
-    # Fallback for environments without camera support
+from kivy import platform
+from kivy.clock import Clock
+from jnius import autoclass, cast
+from android import activity
+from android.runnable import run_on_ui_thread
+
+if platform == 'android':
+    Intent = autoclass('android.content.Intent')
+    PythonActivity = autoclass('org.kivy.android.PythonActivity')
+    Uri = autoclass('android.net.Uri')
+    Toast = autoclass('android.widget.Toast')
+else:
+    # Untuk desktop, kita tidak menggunakan intent
     pass
 
 class BarcodeScanner:
-    def __init__(self):
-        self.camera = None
-        self.is_scanning = False
-        self.callback = None
+    def __init__(self, on_barcode_scanned):
+        self.on_barcode_scanned = on_barcode_scanned
+        self.scan_result = None
 
-    def init_camera(self):
-        try:
-            self.camera = Camera(resolution=(640, 480), play=True)
-            self.camera.bind(texture=self.on_camera_texture)
-            return self.camera
-        except Exception as e:
-            print(f"Camera initialization failed: {e}")
-            return None
+    def scan_barcode(self):
+        if platform == 'android':
+            self._scan_android()
+        else:
+            # Di desktop, kita tidak memindai, tetapi memunculkan input manual
+            # Kita akan kembalikan None dan handle di main.py untuk input manual
+            self.on_barcode_scanned(None)
 
-    def on_camera_texture(self, instance, value):
-        if self.is_scanning and value and self.callback:
-            self.scan_barcode(value)
+    def _scan_android(self):
+        # Menggunakan intent untuk memindai barcode
+        intent = Intent('com.google.zxing.client.android.SCAN')
+        intent.putExtra('PROMPT_MESSAGE', 'Arahkan kamera ke barcode')
+        intent.putExtra('SCAN_MODE', 'PRODUCT_MODE')
+        activity = PythonActivity.mActivity
+        activity.startActivityForResult(intent, 0)
+        activity.bind(on_activity_result=self._on_activity_result)
 
-    def scan_barcode(self, texture):
-        try:
-            # Convert texture to numpy array
-            buffer = texture.pixels
-            size = texture.size
-            fmt = texture.colorfmt
-
-            # Convert to PIL Image
-            pil_image = PILImage.frombytes(fmt, size, buffer, 'raw', fmt, 0, 1)
-
-            # Convert to grayscale
-            gray_image = pil_image.convert('L')
-
-            # Decode barcodes
-            barcodes = decode(gray_image)
-
-            if barcodes:
-                barcode_data = barcodes[0].data.decode('utf-8')
-                self.is_scanning = False
-                if self.callback:
-                    self.callback(barcode_data)
-        except Exception as e:
-            print(f"Barcode scanning error: {e}")
-
-    def start_scan(self, callback):
-        self.callback = callback
-        self.is_scanning = True
-
-    def stop_scan(self):
-        self.is_scanning = False
-        if self.camera:
-            self.camera.play = False
+    def _on_activity_result(self, request_code, result_code, intent):
+        if request_code == 0:
+            if result_code == -1:  # RESULT_OK
+                contents = intent.getStringExtra('SCAN_RESULT')
+                self.on_barcode_scanned(contents)
+            else:
+                self.on_barcode_scanned(None)
