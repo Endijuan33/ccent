@@ -6,12 +6,13 @@ from kivy.metrics import dp
 from kivy.utils import platform
 
 def register_fonts():
-    LabelBase.register(name='Roboto',
-                      fn_regular='assets/fonts/Roboto-Regular.ttf',
-                      fn_bold='assets/fonts/Roboto-Bold.ttf')
+    # Anda perlu memiliki file font di assets/fonts/
+    LabelBase.register(name='Roboto', 
+                       fn_regular='assets/fonts/Roboto-Regular.ttf', 
+                       fn_bold='assets/fonts/Roboto-Bold.ttf')
 
 def export_to_csv(data, filename_prefix):
-    filename = f"{filename_prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    filename = f"{filename_prefix}{datetime.now().strftime('%Y%m%d%H%M%S')}.csv"
     with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerows(data)
