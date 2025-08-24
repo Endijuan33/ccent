@@ -14,55 +14,85 @@ jobs:
       ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
 
     steps:
+    # Checkout source code
     - name: Checkout code
       uses: actions/checkout@v4
 
+    # Caching pip dependencies
+    - name: Cache pip dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    # Install system dependencies
     - name: Install system dependencies
       run: |
+        set -e
         sudo apt-get update
         sudo apt-get install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev wget
 
+    # Verifikasi git terinstall
     - name: Verify git installation
       run: |
         which git
         git --version
 
+    # Setup python
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
+    # Install buildozer & dependencies
     - name: Install Buildozer and dependencies
       run: |
+        set -e
         python -m pip install --upgrade pip
         pip install buildozer cython==0.29.33 virtualenv
 
+    # Download Android Command Line Tools
     - name: Download Android Command Line Tools
       run: |
+        set -e
         mkdir -p ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
         unzip -q cmdline-tools.zip -d ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools
         rm cmdline-tools.zip
         mv ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/cmdline-tools ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest
 
+    # Accept SDK licenses
     - name: Accept Android SDK licenses
       run: |
         yes | ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${{ env.ANDROID_SDK_ROOT }} --licenses
 
+    # Install Android platforms and tools
     - name: Install Android platforms and tools
       run: |
         ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${{ env.ANDROID_SDK_ROOT }} "platforms;android-33" "build-tools;33.0.0" "platform-tools" "ndk;25.1.8937393"
 
+    # Build APK dengan Buildozer dan verifikasi file APK
     - name: Build with Buildozer
       env:
         ANDROIDSDK: ${{ env.ANDROID_SDK_ROOT }}
         ANDROID_NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/25.1.8937393
-        PATH: ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin:${{ env.ANDROID_SDK_ROOT }}/platform-tools:${{ env.ANDROID_SDK_ROOT }}/build-tools/33.0.0:$PATH
+        PATH: /usr/bin:${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin:${{ env.ANDROID_SDK_ROOT }}/platform-tools:${{ env.ANDROID_SDK_ROOT }}/build-tools/33.0.0:$PATH
       run: |
+        set -e
+        echo "Verifying git is available..."
+        which git
+        git --version
+        echo "Start buildozer..."
         buildozer -v android debug
+        echo "Verifying APK output..."
+        ls -l bin/*.apk
 
+    # Upload APK
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: app
         path: bin/*.apk
+        
