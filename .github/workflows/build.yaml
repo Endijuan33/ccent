@@ -71,7 +71,25 @@ jobs:
     # Install Android platforms and tools
     - name: Install Android platforms and tools
       run: |
-        ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${{ env.ANDROID_SDK_ROOT }} "platforms;android-33" "build-tools;33.0.0" "platform-tools" "ndk;25.1.8937393"
+        ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${{ env.ANDROID_SDK_ROOT }} \
+          "platforms;android-33" \
+          "build-tools;33.0.0" \
+          "platform-tools" \
+          "ndk;25.1.8937393"
+
+    # Verifikasi build-tools dan keberadaan aidl
+    - name: Verify build-tools and aidl
+      run: |
+        set -e
+        AIDL_PATH="${{ env.ANDROID_SDK_ROOT }}/build-tools/33.0.0/aidl"
+        if [ ! -f "$AIDL_PATH" ]; then
+          echo "AIDL not found at $AIDL_PATH, build-tools installation failed!"
+          ls -l "${{ env.ANDROID_SDK_ROOT }}/build-tools/33.0.0/"
+          exit 1
+        else
+          echo "AIDL found at $AIDL_PATH."
+          $AIDL_PATH --version || echo "AIDL executable is present."
+        fi
 
     # Build APK dengan Buildozer dan verifikasi file APK
     - name: Build with Buildozer
@@ -84,6 +102,8 @@ jobs:
         echo "Verifying git is available..."
         which git
         git --version
+        echo "Verifying aidl is available..."
+        which aidl || echo "aidl should be available in build-tools"
         echo "Start buildozer..."
         buildozer -v android debug
         echo "Verifying APK output..."
@@ -95,4 +115,3 @@ jobs:
       with:
         name: app
         path: bin/*.apk
-        
