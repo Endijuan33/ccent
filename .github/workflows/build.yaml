@@ -22,25 +22,34 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev wget
+        sudo apt-get install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev wget expect
 
     - name: Install Buildozer and dependencies
       run: |
         python -m pip install --upgrade pip
         pip install buildozer cython==0.29.33 virtualenv
 
-    - name: Set up Android SDK
+    - name: Set up Android SDK correctly
       run: |
+        # Create Android SDK directory
         mkdir -p ~/android-sdk
         cd ~/android-sdk
+        
+        # Download and extract Android Command Line Tools
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
         unzip -q commandlinetools-linux-9477386_latest.zip
-        mkdir -p cmdline-tools/latest
-        mv cmdline-tools/* cmdline-tools/latest/
-        rm -rf cmdline-tools tools
+        
+        # Fix directory structure - this is the correct way
+        mkdir -p cmdline-tools
+        mv tools cmdline-tools/latest
+        
+        # Set environment variables
+        echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
+        echo "PATH=$HOME/android-sdk/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
 
     - name: Accept Android licenses
       run: |
+        # Create license files manually to avoid interactive prompts
         mkdir -p ~/android-sdk/licenses
         echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > ~/android-sdk/licenses/android-sdk-license
         echo "84831b9409646a918e30573bab4c9c91346d8abd" > ~/android-sdk/licenses/android-sdk-preview-license
@@ -49,14 +58,23 @@ jobs:
 
     - name: Install Android tools
       run: |
+        # Install required Android packages
         ~/android-sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-33" "build-tools;33.0.0" "platform-tools" "ndk;25.1.8937393"
-        echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
-        echo "ANDROID_NDK_HOME=$HOME/android-sdk/ndk/25.1.8937393" >> $GITHUB_ENV
-        echo "PATH=$HOME/android-sdk/cmdline-tools/latest/bin:$HOME/android-sdk/platform-tools:$PATH" >> $GITHUB_ENV
+        
+        # Add platform-tools to PATH
+        echo "PATH=$HOME/android-sdk/platform-tools:$PATH" >> $GITHUB_ENV
 
     - name: Build APK with Buildozer
       run: |
+        # Initialize Buildozer if needed
+        if [ ! -f "buildozer.spec" ]; then
+          buildozer init
+        fi
+        
+        # Build the APK
         buildozer -v android debug
+        
+        # List the built APK
         ls -la bin/
 
     - name: Upload APK artifact
