@@ -11,7 +11,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Build APK with Buildozer
       run: |
@@ -20,7 +20,7 @@ jobs:
         buildozer -v android debug
 
     - name: Upload APK artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: central-jati-cell-apk
         path: bin/*.apk
