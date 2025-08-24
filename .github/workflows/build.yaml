@@ -27,57 +27,69 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-pip-
 
-    # Install system dependencies
+    # Install system dependencies with retries
     - name: Install system dependencies
       run: |
         set -e
-        sudo apt-get update
-        sudo apt-get install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev wget
+        for i in {1..3}; do
+          sudo apt-get update && sudo apt-get install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev wget && break || sleep 10
+        done
 
-    # Verifikasi git terinstall
+    # Verify git installation robustly
     - name: Verify git installation
       run: |
-        which git
+        set -e
+        if ! which git; then
+          echo "Git not found!"; exit 1
+        fi
         git --version
 
-    # Setup python
+    # Setup Python robustly
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
-    # Install buildozer & dependencies
+    # Upgrade pip and install Buildozer and dependencies with retries
     - name: Install Buildozer and dependencies
       run: |
         set -e
-        python -m pip install --upgrade pip
-        pip install buildozer cython==0.29.33 virtualenv
+        for i in {1..3}; do
+          python -m pip install --upgrade pip && \
+          pip install --no-cache-dir buildozer cython==0.29.33 virtualenv && break || sleep 10
+        done
 
-    # Download Android Command Line Tools
+    # Download Android Command Line Tools robustly
     - name: Download Android Command Line Tools
       run: |
         set -e
         mkdir -p ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
+        for i in {1..3}; do
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip && break || sleep 10
+        done
         unzip -q cmdline-tools.zip -d ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools
         rm cmdline-tools.zip
         mv ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/cmdline-tools ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest
 
-    # Accept SDK licenses
+    # Accept SDK licenses robustly
     - name: Accept Android SDK licenses
       run: |
-        yes | ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${{ env.ANDROID_SDK_ROOT }} --licenses
+        set -e
+        yes | ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${{ env.ANDROID_SDK_ROOT }} --licenses || true
 
-    # Install Android platforms and tools
+    # Install Android platforms and tools robustly
     - name: Install Android platforms and tools
       run: |
-        ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${{ env.ANDROID_SDK_ROOT }} \
-          "platforms;android-33" \
-          "build-tools;33.0.0" \
-          "platform-tools" \
-          "ndk;25.1.8937393"
+        set -e
+        for i in {1..3}; do
+          ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${{ env.ANDROID_SDK_ROOT }} \
+            "platforms;android-33" \
+            "build-tools;33.0.0" \
+            "platform-tools" \
+            "ndk;25.1.8937393" && break || sleep 10
+        done
 
-    # Verifikasi build-tools dan keberadaan aidl
+    # Verify build-tools and aidl robustly
     - name: Verify build-tools and aidl
       run: |
         set -e
@@ -105,9 +117,16 @@ jobs:
         echo "Verifying aidl is available..."
         which aidl || echo "aidl should be available in build-tools"
         echo "Start buildozer..."
-        buildozer -v android debug
+        for i in {1..3}; do
+          buildozer -v android debug && break || sleep 10
+        done
         echo "Verifying APK output..."
-        ls -l bin/*.apk
+        if ls -l bin/*.apk; then
+          echo "APK build success!"
+        else
+          echo "APK not found. Build failed!"
+          exit 1
+        fi
 
     # Upload APK
     - name: Upload APK
