@@ -5,10 +5,10 @@ package.domain = com.central
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,txt
 version = 1.0
-requirements = python3,kivy==2.1.0,kivymd==1.1.1,pyzbar,pillow,openssl,sqlite3,android
+requirements = python3,kivy==2.2.1,kivymd==1.2.0,pyzbar,pillow,openssl,sqlite3,android
 orientation = portrait
 osx.python_version = 3
-osx.kivy_version = 2.1.0
+osx.kivy_version = 2.2.1
 fullscreen = 0
 
 # Permissions
