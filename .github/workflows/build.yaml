@@ -8,14 +8,14 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04  # Menggunakan Ubuntu 22.04 yang lebih baru
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v4  # Menggunakan v4 bukan v3
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5  # Menggunakan v5 bukan v4
       with:
         python-version: '3.9'
 
@@ -33,7 +33,7 @@ jobs:
             zlib1g-dev \
             libncurses5-dev \
             libncursesw5-dev \
-            libtinfo5 \
+            libtinfo6 \  # Menggunakan libtinfo6 bukan libtinfo5
             cmake \
             libffi-dev \
             libssl-dev \
@@ -41,38 +41,15 @@ jobs:
             libgl1-mesa-dev \
             wget
 
-    - name: Download and setup Android SDK
-      run: |
-        # Download Android Command Line Tools
-        wget https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip -O cmdline-tools.zip
-        unzip cmdline-tools.zip -d cmdline-tools
-        mkdir -p android-sdk/cmdline-tools
-        mv cmdline-tools android-sdk/cmdline-tools/latest
-        
-        # Set environment variables
-        echo "ANDROID_HOME=$PWD/android-sdk" >> $GITHUB_ENV
-        echo "ANDROID_SDK_ROOT=$PWD/android-sdk" >> $GITHUB_ENV
-        echo "$PWD/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
-        echo "$PWD/android-sdk/platform-tools" >> $GITHUB_PATH
-        
-        # Accept licenses first
-        yes | android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses || true
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3  # Menggunakan v3 bukan v2
+      with:
+        build-tools-version: 33.0.0
+        ndk-version: 25.1.8937393
+        platform-version: 33
+        cmake-version: 3.22.1
 
-    - name: Install Android SDK components
-      run: |
-        # Install required Android components
-        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-          "platforms;android-33" \
-          "build-tools;33.0.0" \
-          "platform-tools" \
-          "ndk;25.1.8937393" \
-          "cmake;3.22.1"
-        
-        # Verify aidl is available
-        ls -la $ANDROID_HOME/build-tools/33.0.0/aidl || echo "aidl not found"
-        $ANDROID_HOME/build-tools/33.0.0/aidl --version || echo "Cannot run aidl"
-
-    - name: Install Buildozer and dependencies
+    - name: Install Buildozer
       run: |
         pip install --upgrade pip
         pip install buildozer cython virtualenv
@@ -82,18 +59,10 @@ jobs:
         buildozer appclean || true
         rm -rf ~/.buildozer || true
 
-    - name: Initialize Buildozer
-      run: |
-        buildozer init || true
-
     - name: Build APK with Buildozer
       run: |
-        # Set environment variables for Buildozer
-        export ANDROIDSDK=$ANDROID_HOME
-        export ANDROIDNDK=$ANDROID_HOME/ndk/25.1.8937393
-        export ANDROIDAPI=33
-        
-        # Build the APK
+        # Accept Android licenses
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
         buildozer -v android release
       env:
         P4A_RELEASE_KEYSTORE: ${{ secrets.P4A_RELEASE_KEYSTORE }}
@@ -102,7 +71,7 @@ jobs:
         P4A_RELEASE_KEYALIAS: ${{ secrets.P4A_RELEASE_KEYALIAS }}
 
     - name: Upload APK artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v4  # Menggunakan v4 bukan v3
       with:
         name: central-jati-cell-apk
         path: bin/*.apk
