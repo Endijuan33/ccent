@@ -3,8 +3,6 @@ name: Build Android APK
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
 
 jobs:
   build:
@@ -19,57 +17,29 @@ jobs:
       with:
         python-version: '3.10'
 
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev wget
+        sudo apt-get install -y git zip unzip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev wget
 
-    - name: Install Buildozer and dependencies
+    - name: Install Buildozer
       run: |
-        python -m pip install --upgrade pip
-        pip install buildozer cython==0.29.33 virtualenv
+        pip install buildozer cython==0.29.33
 
-    - name: Set up Android SDK
-      run: |
-        # Create Android SDK directory
-        mkdir -p ~/android-sdk
-        cd ~/android-sdk
-        
-        # Download and extract Android Command Line Tools
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
-        unzip -q commandlinetools-linux-9477386_latest.zip
-        mkdir -p cmdline-tools/latest
-        mv cmdline-tools/* cmdline-tools/latest/
-        rm -rf cmdline-tools tools
-        
-        # Set environment variables
-        echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-        echo "PATH=$HOME/android-sdk/cmdline-tools/latest/bin:$HOME/android-sdk/platform-tools:$PATH" >> $GITHUB_ENV
-        
-        # Verify sdkmanager is accessible
-        $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --list
-
-    - name: Accept Android licenses
-      run: |
-        # Accept all Android licenses
-        yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
-
-    - name: Install Android platform and build tools
-      run: |
-        # Install required Android packages
-        $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-33" "build-tools;33.0.0" "platform-tools" "ndk;25.1.8937393"
+    - name: Setup Android SDK with custom action
+      uses: android-actions/setup-android@v2
+      with:
+        ndk-version: 25.1.8937393
 
     - name: Build APK with Buildozer
       run: |
-        # Initialize Buildozer if needed
-        if [ ! -f "buildozer.spec" ]; then
-          buildozer init
-        fi
-        
-        # Build the APK
         buildozer -v android debug
-        
-        # List the built APK
         ls -la bin/
 
     - name: Upload APK artifact
