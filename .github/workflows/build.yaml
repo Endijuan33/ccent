@@ -3,21 +3,56 @@ name: Build Android APK
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    container: beevelop/kivy:latest
+    runs-on: ubuntu-22.04
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y git zip unzip openjdk-11-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev
+
+    - name: Install Buildozer and dependencies
+      run: |
+        pip install buildozer cython==0.29.33
+
+    - name: Set up Android SDK
+      run: |
+        mkdir -p ~/android-sdk
+        cd ~/android-sdk
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
+        unzip -q commandlinetools-linux-9477386_latest.zip
+        mkdir -p cmdline-tools/latest
+        mv cmdline-tools/* cmdline-tools/latest/
+        export ANDROID_HOME=~/android-sdk
+        export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
+        echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+        echo "PATH=$PATH" >> $GITHUB_ENV
+
+    - name: Accept Android licenses
+      run: |
+        yes | sdkmanager --licenses
+
+    - name: Install Android platform and build tools
+      run: |
+        sdkmanager "platforms;android-33" "build-tools;33.0.0" "platform-tools" "ndk;25.1.8937393"
+
     - name: Build APK with Buildozer
       run: |
-        apt-get update && apt-get install -y openjdk-11-jdk
-        pip install buildozer
         buildozer -v android debug
+        ls -la bin/
 
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
