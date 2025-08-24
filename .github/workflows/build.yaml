@@ -2,171 +2,57 @@ name: Build Android APK
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    tags:
+      - 'v*'
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
-
-    env:
-      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Cache pip dependencies
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
-
-    - name: Install system dependencies robustly
-      run: |
-        set -e
-        sudo apt-get update
-        DEPS="git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev wget"
-        for pkg in $DEPS; do
-          if ! dpkg -s $pkg >/dev/null 2>&1; then
-            echo "Installing missing dependency: $pkg"
-            sudo apt-get install -y $pkg
-          else
-            echo "$pkg already installed."
-          fi
-        done
-
-    - name: Verify git installation
-      run: |
-        set -e
-        if ! command -v git >/dev/null 2>&1; then
-          echo "git not found! Attempting to install..."
-          sudo apt-get install -y git
-        fi
-        git --version
+      uses: actions/checkout@v3
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v4
       with:
-        python-version: '3.10'
+        python-version: '3.9'
 
-    - name: Install Buildozer and dependencies robustly
+    - name: Install Buildozer and dependencies
       run: |
-        set -e
-        python -m pip install --upgrade pip
-        for pkg in buildozer cython==0.29.33 virtualenv; do
-          if ! python -c "import ${pkg%%==*}" >/dev/null 2>&1; then
-            echo "Installing missing Python package: $pkg"
-            pip install "$pkg"
-          else
-            echo "$pkg already installed."
-          fi
-        done
-        if [ -f requirements.txt ]; then
-          pip install -r requirements.txt || pip install --use-deprecated=legacy-resolver -r requirements.txt
-        fi
+        pip install --upgrade pip
+        pip install buildozer
+        sudo apt-get update
+        sudo apt-get install -y \
+            git \
+            zip \
+            unzip \
+            openjdk-11-jdk \
+            python3-pip \
+            autoconf \
+            libtool \
+            pkg-config \
+            zlib1g-dev \
+            libncurses5-dev \
+            libncursesw5-dev \
+            libtinfo5 \
+            cmake \
+            libffi-dev \
+            libssl-dev \
+            libusb-1.0-0 \
+            libgl1-mesa-dev
 
-    - name: Download Android Command Line Tools robustly
+    - name: Build APK with Buildozer
       run: |
-        set -e
-        mkdir -p ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools
-        if [ ! -f ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin/sdkmanager ]; then
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
-          unzip -q cmdline-tools.zip -d ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools
-          rm cmdline-tools.zip
-          mv ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/cmdline-tools ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest
-        else
-          echo "Android Command Line Tools already downloaded."
-        fi
-
-    - name: Accept Android SDK licenses robustly
-      run: |
-        set -e
-        yes | ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${{ env.ANDROID_SDK_ROOT }} --licenses || true
-
-    - name: Install Android platforms and tools robustly
-      run: |
-        set -e
-        SDKMANAGER="${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin/sdkmanager"
-        $SDKMANAGER --sdk_root=${{ env.ANDROID_SDK_ROOT }} \
-          "platforms;android-33" \
-          "build-tools;33.0.0" \
-          "platform-tools" \
-          "ndk;25.1.8937393" || true
-        # Pastikan build-tools versi terbaru juga tersedia
-        $SDKMANAGER --sdk_root=${{ env.ANDROID_SDK_ROOT }} "build-tools;34.0.0" || true
-
-    - name: Find and verify AIDL robustly
-      run: |
-        set -e
-        SDK_BUILD_TOOLS="${{ env.ANDROID_SDK_ROOT }}/build-tools"
-        FOUND_AIDL=""
-        echo "Checking for AIDL in build-tools directories..."
-        for dir in $(ls "$SDK_BUILD_TOOLS"); do
-          if [ -f "$SDK_BUILD_TOOLS/$dir/aidl" ]; then
-            FOUND_AIDL="$SDK_BUILD_TOOLS/$dir/aidl"
-            echo "Found aidl at $FOUND_AIDL"
-            export PATH="$SDK_BUILD_TOOLS/$dir:$PATH"
-            break
-          fi
-        done
-        # Jika belum ditemukan, install versi lain (fallback)
-        if [ -z "$FOUND_AIDL" ]; then
-          echo "AIDL not found, trying to install build-tools version 34.0.0..."
-          ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${{ env.ANDROID_SDK_ROOT }} "build-tools;34.0.0"
-          if [ -f "$SDK_BUILD_TOOLS/34.0.0/aidl" ]; then
-            FOUND_AIDL="$SDK_BUILD_TOOLS/34.0.0/aidl"
-            export PATH="$SDK_BUILD_TOOLS/34.0.0:$PATH"
-            echo "Found aidl at $FOUND_AIDL"
-          fi
-        fi
-        if [ -z "$FOUND_AIDL" ]; then
-          echo "AIDL still not found! Listing contents for debugging:"
-          ls -lR "$SDK_BUILD_TOOLS"
-          exit 1
-        else
-          "$FOUND_AIDL" --version || echo "AIDL is present and executable."
-        fi
-
-    - name: Build with Buildozer robustly
+        buildozer -v android release
       env:
-        ANDROIDSDK: ${{ env.ANDROID_SDK_ROOT }}
-        ANDROID_NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/25.1.8937393
-        PATH: /usr/bin:${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin:${{ env.ANDROID_SDK_ROOT }}/platform-tools:${{ env.ANDROID_SDK_ROOT }}/build-tools/33.0.0:${{ env.ANDROID_SDK_ROOT }}/build-tools/34.0.0:$PATH
-      run: |
-        set -e
-        echo "Verifying git is available..."
-        which git
-        git --version
-        echo "Verifying aidl is available..."
-        which aidl || echo "aidl should be available in build-tools"
-        echo "Checking Buildozer install..."
-        if ! command -v buildozer >/dev/null 2>&1; then
-          echo "Buildozer not found! Installing..."
-          pip install buildozer
-        fi
-        echo "Start buildozer..."
-        if buildozer -v android debug; then
-          echo "Buildozer build succeeded."
-        else
-          echo "Initial build failed, retrying after cleaning..."
-          buildozer android clean
-          buildozer -v android debug
-        fi
-        echo "Verifying APK output..."
-        APK=$(ls -1 bin/*.apk | head -n1)
-        if [ -f "$APK" ]; then
-          echo "APK created: $APK"
-        else
-          echo "No APK found in bin/, build failed."
-          exit 1
-        fi
+        P4A_RELEASE_KEYSTORE: ${{ secrets.P4A_RELEASE_KEYSTORE }}
+        P4A_RELEASE_KEYSTORE_PASSWD: ${{ secrets.P4A_RELEASE_KEYSTORE_PASSWD }}
+        P4A_RELEASE_KEYALIAS_PASSWD: ${{ secrets.P4A_RELEASE_KEYALIAS_PASSWD }}
+        P4A_RELEASE_KEYALIAS: ${{ secrets.P4A_RELEASE_KEYALIAS }}
 
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@v3
       with:
-        name: app
+        name: central-jati-cell-apk
         path: bin/*.apk
