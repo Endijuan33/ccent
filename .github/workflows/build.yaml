@@ -3,64 +3,24 @@ name: Build Android APK
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    container: beevelop/kivy:latest
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.8'
-
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y git zip unzip openjdk-11-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
-
-    - name: Install Buildozer
-      run: pip install buildozer
-
-    - name: Set up Android SDK
-      run: |
-        mkdir -p ~/android-sdk
-        cd ~/android-sdk
-        wget https://dl.google.com/android/repository/commandlinetools-linux-8512546_latest.zip
-        unzip commandlinetools-linux-8512546_latest.zip
-        mkdir cmdline-tools
-        mv tools cmdline-tools/latest
-        export ANDROID_HOME=~/android-sdk
-        export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH
-        echo "ANDROID_HOME=~/android-sdk" >> $GITHUB_ENV
-        echo "PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$PATH" >> $GITHUB_ENV
-
-    - name: Accept Android licenses
-      run: |
-        yes | ~/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
-
-    - name: Install Android platform and build tools
-      run: |
-        ~/android-sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-33" "build-tools;33.0.0" "platform-tools"
-
-    - name: Initialize Buildozer
-      run: |
-        buildozer init
-        # Copy our buildozer.spec to overwrite the generated one
-        cp buildozer.spec .
+      uses: actions/checkout@v3
 
     - name: Build APK with Buildozer
       run: |
+        apt-get update && apt-get install -y openjdk-11-jdk
+        pip install buildozer
         buildozer -v android debug
-        ls -la bin/
 
     - name: Upload APK artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: central-jati-cell-apk
         path: bin/*.apk
