@@ -116,6 +116,40 @@ jobs:
             $SDKMANAGER --sdk_root=${{ env.ANDROID_SDK_ROOT }} "$tool"
           fi
         done
+ 
+        # Find and verify AIDL robustly
+    - name: Find and verify AIDL robustly
+      run: |
+        set -e
+        SDK_BUILD_TOOLS="${{ env.ANDROID_SDK_ROOT }}/build-tools"
+        echo "Checking for AIDL in build-tools directories..."
+        FOUND_AIDL=""
+        for dir in $(ls "$SDK_BUILD_TOOLS"); do
+          if [ -f "$SDK_BUILD_TOOLS/$dir/aidl" ]; then
+            FOUND_AIDL="$SDK_BUILD_TOOLS/$dir/aidl"
+            echo "Found aidl at $FOUND_AIDL"
+            export PATH="$SDK_BUILD_TOOLS/$dir:$PATH"
+            break
+          fi
+        done
+
+        if [ -z "$FOUND_AIDL" ]; then
+          echo "AIDL not found in any build-tools version, attempting to install latest build-tools..."
+          ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${{ env.ANDROID_SDK_ROOT }} "build-tools;34.0.0" || true
+          if [ -f "$SDK_BUILD_TOOLS/34.0.0/aidl" ]; then
+            FOUND_AIDL="$SDK_BUILD_TOOLS/34.0.0/aidl"
+            export PATH="$SDK_BUILD_TOOLS/34.0.0:$PATH"
+            echo "Found aidl at $FOUND_AIDL"
+          fi
+        fi
+
+        if [ -z "$FOUND_AIDL" ]; then
+          echo "AIDL still not found! Listing contents for debugging:"
+          ls -lR "$SDK_BUILD_TOOLS"
+          exit 1
+        else
+          "$FOUND_AIDL" --version || echo "AIDL is present and executable."
+        fi
 
     # Verify build-tools and aidl robustly
     - name: Verify build-tools and aidl robustly
