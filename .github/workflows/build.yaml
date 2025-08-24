@@ -2,9 +2,9 @@ name: Build Android APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build:
@@ -29,72 +29,34 @@ jobs:
         python -m pip install --upgrade pip
         pip install buildozer cython==0.29.33 virtualenv
 
-    - name: Set up Android SDK with specific versions
+    - name: Set up Android SDK
       run: |
-        # Create Android SDK directory
         mkdir -p ~/android-sdk
         cd ~/android-sdk
-        
-        # Download and extract Android Command Line Tools
         wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip
         unzip -q commandlinetools-linux-9477386_latest.zip
         mkdir -p cmdline-tools/latest
         mv cmdline-tools/* cmdline-tools/latest/
         rm -rf cmdline-tools tools
-        
-        # Set environment variables
-        echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
-        echo "PATH=$HOME/android-sdk/cmdline-tools/latest/bin:$HOME/android-sdk/platform-tools:$PATH" >> $GITHUB_ENV
 
-    - name: Accept Android licenses with interactive workaround
+    - name: Accept Android licenses
       run: |
-        # Create a script to accept all licenses
-        mkdir -p $HOME/android-sdk/licenses
-        echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > $HOME/android-sdk/licenses/android-sdk-license
-        echo "84831b9409646a918e30573bab4c9c91346d8abd" > $HOME/android-sdk/licenses/android-sdk-preview-license
-        echo "d56f5187479451eabf01fb78af6dfcb131a6481e" > $HOME/android-sdk/licenses/android-sdk-license
-        echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $HOME/android-sdk/licenses/android-googletv-license
-        
-        # Use expect to accept licenses interactively
-        sudo apt-get install -y expect
-        expect -c '
-set timeout -1
-spawn $env(HOME)/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
-expect {
-    "Accept? (y/N):" { exp_send "y\r"; exp_continue }
-    eof
-}
-'
+        mkdir -p ~/android-sdk/licenses
+        echo "8933bad161af4178b1185d1a37fbf41ea5269c55" > ~/android-sdk/licenses/android-sdk-license
+        echo "84831b9409646a918e30573bab4c9c91346d8abd" > ~/android-sdk/licenses/android-sdk-preview-license
+        echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/android-sdk/licenses/android-sdk-license
+        echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > ~/android-sdk/licenses/android-googletv-license
 
-    - name: Install specific Android tools (avoiding rc versions)
+    - name: Install Android tools
       run: |
-        # Install specific stable versions
-        $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-33"
-        $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "build-tools;33.0.0"
-        $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools"
-        $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "ndk;25.1.8937393"
-        
-        # Verify installation
-        $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --list | grep -E "(build-tools|platforms)"
-
-    - name: Set up Buildozer environment
-      run: |
-        # Initialize Buildozer if needed
-        if [ ! -f "buildozer.spec" ]; then
-          buildozer init
-        fi
-        
-        # Set environment variables for Buildozer
+        ~/android-sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-33" "build-tools;33.0.0" "platform-tools" "ndk;25.1.8937393"
         echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
         echo "ANDROID_NDK_HOME=$HOME/android-sdk/ndk/25.1.8937393" >> $GITHUB_ENV
-        echo "PATH=$HOME/android-sdk/platform-tools:$PATH" >> $GITHUB_ENV
+        echo "PATH=$HOME/android-sdk/cmdline-tools/latest/bin:$HOME/android-sdk/platform-tools:$PATH" >> $GITHUB_ENV
 
     - name: Build APK with Buildozer
       run: |
-        # Build the APK with verbose output
         buildozer -v android debug
-        
-        # List the built APK
         ls -la bin/
 
     - name: Upload APK artifact
