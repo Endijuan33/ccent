@@ -1,14 +1,15 @@
 import sqlite3
-from models import Product
+from models import Product, CartItem
+from datetime import datetime
 
 class Database:
     def __init__(self, db_name='pos.db'):
         self.conn = sqlite3.connect(db_name)
         self.cursor = self.conn.cursor()
         self.create_tables()
-
+        
     def create_tables(self):
-        # Tabel produk
+        # Create products table
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS products (
                 id INTEGER PRIMARY KEY,
@@ -18,7 +19,8 @@ class Database:
                 imei TEXT UNIQUE
             )
         ''')
-        # Tabel transaksi
+        
+        # Create transactions table
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS transactions (
                 id INTEGER PRIMARY KEY,
@@ -26,7 +28,8 @@ class Database:
                 date TEXT NOT NULL
             )
         ''')
-        # Tabel items transaksi
+        
+        # Create transaction_items table
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS transaction_items (
                 id INTEGER PRIMARY KEY,
@@ -38,8 +41,9 @@ class Database:
                 FOREIGN KEY(product_id) REFERENCES products(id)
             )
         ''')
+        
         self.conn.commit()
-
+        
     def get_product_by_barcode(self, barcode):
         self.cursor.execute("SELECT * FROM products WHERE imei=?", (barcode,))
         product_data = self.cursor.fetchone()
@@ -52,20 +56,29 @@ class Database:
             product.imei = product_data[4]
             return product
         return None
-
+        
     def add_product(self, product):
-        self.cursor.execute("INSERT INTO products (name, price, stock, imei) VALUES (?, ?, ?, ?)",
-                            (product.name, product.price, product.stock, product.imei))
+        self.cursor.execute(
+            "INSERT INTO products (name, price, stock, imei) VALUES (?, ?, ?, ?)",
+            (product.name, product.price, product.stock, product.imei)
+        )
         self.conn.commit()
-
+        
     def add_transaction(self, total, items):
         date = datetime.now().isoformat()
-        self.cursor.execute("INSERT INTO transactions (total, date) VALUES (?, ?)", (total, date))
+        self.cursor.execute(
+            "INSERT INTO transactions (total, date) VALUES (?, ?)",
+            (total, date)
+        )
         transaction_id = self.cursor.lastrowid
+        
         for item in items:
-            self.cursor.execute("INSERT INTO transaction_items (transaction_id, product_id, quantity, subtotal) VALUES (?, ?, ?, ?)",
-                                (transaction_id, item.product.id, item.quantity, item.subtotal))
+            self.cursor.execute(
+                "INSERT INTO transaction_items (transaction_id, product_id, quantity, subtotal) VALUES (?, ?, ?, ?)",
+                (transaction_id, item.product.id, item.quantity, item.subtotal)
+            )
+            
         self.conn.commit()
-
+        
     def close(self):
         self.conn.close()
