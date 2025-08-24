@@ -14,11 +14,9 @@ jobs:
       ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
 
     steps:
-    # Checkout source code
     - name: Checkout code
       uses: actions/checkout@v4
 
-    # Caching pip dependencies
     - name: Cache pip dependencies
       uses: actions/cache@v4
       with:
@@ -27,12 +25,10 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-pip-
 
-    # Install system dependencies robustly
     - name: Install system dependencies robustly
       run: |
         set -e
         sudo apt-get update
-        # List all dependencies
         DEPS="git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev wget"
         for pkg in $DEPS; do
           if ! dpkg -s $pkg >/dev/null 2>&1; then
@@ -43,7 +39,6 @@ jobs:
           fi
         done
 
-    # Verify git installation (robust)
     - name: Verify git installation
       run: |
         set -e
@@ -53,18 +48,15 @@ jobs:
         fi
         git --version
 
-    # Setup python robustly
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
-    # Upgrade pip and install Buildozer and dependencies robustly
     - name: Install Buildozer and dependencies robustly
       run: |
         set -e
         python -m pip install --upgrade pip
-        # Check & install buildozer, cython, virtualenv
         for pkg in buildozer cython==0.29.33 virtualenv; do
           if ! python -c "import ${pkg%%==*}" >/dev/null 2>&1; then
             echo "Installing missing Python package: $pkg"
@@ -73,12 +65,10 @@ jobs:
             echo "$pkg already installed."
           fi
         done
-        # Install requirements.txt if exists
         if [ -f requirements.txt ]; then
           pip install -r requirements.txt || pip install --use-deprecated=legacy-resolver -r requirements.txt
         fi
 
-    # Download Android Command Line Tools robustly
     - name: Download Android Command Line Tools robustly
       run: |
         set -e
@@ -92,13 +82,11 @@ jobs:
           echo "Android Command Line Tools already downloaded."
         fi
 
-    # Accept SDK licenses robustly
     - name: Accept Android SDK licenses robustly
       run: |
         set -e
         yes | ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${{ env.ANDROID_SDK_ROOT }} --licenses || true
 
-    # Install Android platforms and tools robustly
     - name: Install Android platforms and tools robustly
       run: |
         set -e
@@ -108,22 +96,15 @@ jobs:
           "build-tools;33.0.0" \
           "platform-tools" \
           "ndk;25.1.8937393" || true
+        # Pastikan build-tools versi terbaru juga tersedia
+        $SDKMANAGER --sdk_root=${{ env.ANDROID_SDK_ROOT }} "build-tools;34.0.0" || true
 
-        # Verify installations and re-attempt if failed
-        for tool in "platforms/android-33" "build-tools/33.0.0" "platform-tools" "ndk/25.1.8937393"; do
-          if [ ! -d "${{ env.ANDROID_SDK_ROOT }}/$tool" ]; then
-            echo "$tool missing, retrying installation..."
-            $SDKMANAGER --sdk_root=${{ env.ANDROID_SDK_ROOT }} "$tool"
-          fi
-        done
- 
-        # Find and verify AIDL robustly
     - name: Find and verify AIDL robustly
       run: |
         set -e
         SDK_BUILD_TOOLS="${{ env.ANDROID_SDK_ROOT }}/build-tools"
-        echo "Checking for AIDL in build-tools directories..."
         FOUND_AIDL=""
+        echo "Checking for AIDL in build-tools directories..."
         for dir in $(ls "$SDK_BUILD_TOOLS"); do
           if [ -f "$SDK_BUILD_TOOLS/$dir/aidl" ]; then
             FOUND_AIDL="$SDK_BUILD_TOOLS/$dir/aidl"
@@ -132,17 +113,16 @@ jobs:
             break
           fi
         done
-
+        # Jika belum ditemukan, install versi lain (fallback)
         if [ -z "$FOUND_AIDL" ]; then
-          echo "AIDL not found in any build-tools version, attempting to install latest build-tools..."
-          ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${{ env.ANDROID_SDK_ROOT }} "build-tools;34.0.0" || true
+          echo "AIDL not found, trying to install build-tools version 34.0.0..."
+          ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${{ env.ANDROID_SDK_ROOT }} "build-tools;34.0.0"
           if [ -f "$SDK_BUILD_TOOLS/34.0.0/aidl" ]; then
             FOUND_AIDL="$SDK_BUILD_TOOLS/34.0.0/aidl"
             export PATH="$SDK_BUILD_TOOLS/34.0.0:$PATH"
             echo "Found aidl at $FOUND_AIDL"
           fi
         fi
-
         if [ -z "$FOUND_AIDL" ]; then
           echo "AIDL still not found! Listing contents for debugging:"
           ls -lR "$SDK_BUILD_TOOLS"
@@ -151,30 +131,11 @@ jobs:
           "$FOUND_AIDL" --version || echo "AIDL is present and executable."
         fi
 
-    # Verify build-tools and aidl robustly
-    - name: Verify build-tools and aidl robustly
-      run: |
-        set -e
-        AIDL_PATH="${{ env.ANDROID_SDK_ROOT }}/build-tools/33.0.0/aidl"
-        if [ ! -f "$AIDL_PATH" ]; then
-          echo "AIDL not found, trying to reinstall build-tools..."
-          ${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${{ env.ANDROID_SDK_ROOT }} "build-tools;33.0.0"
-        fi
-        if [ ! -f "$AIDL_PATH" ]; then
-          echo "AIDL still not found at $AIDL_PATH, build-tools installation failed!"
-          ls -l "${{ env.ANDROID_SDK_ROOT }}/build-tools/33.0.0/"
-          exit 1
-        else
-          echo "AIDL found at $AIDL_PATH."
-          $AIDL_PATH --version || echo "AIDL executable is present."
-        fi
-
-    # Build APK with Buildozer and verify output robustly
     - name: Build with Buildozer robustly
       env:
         ANDROIDSDK: ${{ env.ANDROID_SDK_ROOT }}
         ANDROID_NDK_HOME: ${{ env.ANDROID_SDK_ROOT }}/ndk/25.1.8937393
-        PATH: /usr/bin:${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin:${{ env.ANDROID_SDK_ROOT }}/platform-tools:${{ env.ANDROID_SDK_ROOT }}/build-tools/33.0.0:$PATH
+        PATH: /usr/bin:${{ env.ANDROID_SDK_ROOT }}/cmdline-tools/latest/bin:${{ env.ANDROID_SDK_ROOT }}/platform-tools:${{ env.ANDROID_SDK_ROOT }}/build-tools/33.0.0:${{ env.ANDROID_SDK_ROOT }}/build-tools/34.0.0:$PATH
       run: |
         set -e
         echo "Verifying git is available..."
@@ -204,7 +165,6 @@ jobs:
           exit 1
         fi
 
-    # Upload APK robustly
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
