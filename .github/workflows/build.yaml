@@ -1,69 +1,24 @@
-name: Build Android APK
+name: Build Android APK with Buildozer Action
 
 on:
   push:
     tags:
       - 'v*'
-  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04  # Menggunakan Ubuntu 22.04 yang lebih baru
+    runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4  # Menggunakan v4 bukan v3
+      uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5  # Menggunakan v5 bukan v4
+    - name: Build with Buildozer
+      uses: ArturSkowronski/action-buildozer@v1.0.3
       with:
-        python-version: '3.9'
-
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-            git \
-            zip \
-            unzip \
-            openjdk-11-jdk \
-            autoconf \
-            libtool \
-            pkg-config \
-            zlib1g-dev \
-            libncurses5-dev \
-            libncursesw5-dev \
-            libtinfo6 \  # Menggunakan libtinfo6 bukan libtinfo5
-            cmake \
-            libffi-dev \
-            libssl-dev \
-            libusb-1.0-0 \
-            libgl1-mesa-dev \
-            wget
-
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3  # Menggunakan v3 bukan v2
-      with:
-        build-tools-version: 33.0.0
-        ndk-version: 25.1.8937393
-        platform-version: 33
-        cmake-version: 3.22.1
-
-    - name: Install Buildozer
-      run: |
-        pip install --upgrade pip
-        pip install buildozer cython virtualenv
-
-    - name: Clean previous builds
-      run: |
-        buildozer appclean || true
-        rm -rf ~/.buildozer || true
-
-    - name: Build APK with Buildozer
-      run: |
-        # Accept Android licenses
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
-        buildozer -v android release
+        buildozer_version: latest
+        platform: android
+        buildozer_command: release
       env:
         P4A_RELEASE_KEYSTORE: ${{ secrets.P4A_RELEASE_KEYSTORE }}
         P4A_RELEASE_KEYSTORE_PASSWD: ${{ secrets.P4A_RELEASE_KEYSTORE_PASSWD }}
@@ -71,7 +26,7 @@ jobs:
         P4A_RELEASE_KEYALIAS: ${{ secrets.P4A_RELEASE_KEYALIAS }}
 
     - name: Upload APK artifact
-      uses: actions/upload-artifact@v4  # Menggunakan v4 bukan v3
+      uses: actions/upload-artifact@v4
       with:
         name: central-jati-cell-apk
         path: bin/*.apk
